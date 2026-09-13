@@ -1,6 +1,6 @@
 # Gitlet Design Document
 
-**Name**:
+**Joe**:
 
 ## Classes and Data Structures
 

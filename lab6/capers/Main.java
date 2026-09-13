@@ -7,7 +7,7 @@ import java.util.Objects;
 import static capers.Utils.*;
 
 /** Canine Capers: A Gitlet Prelude.
- * @author TODO
+ * @author JOE
 */
 public class Main {
     /**
@@ -72,7 +72,6 @@ public class Main {
         default:
             exitWithError(String.format("Unknown command: %s", args[0]));
         }
-        return;
     }
 
     /**
