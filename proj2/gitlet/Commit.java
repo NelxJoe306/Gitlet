@@ -110,9 +110,8 @@ public class Commit implements Serializable, Dumpable {
             System.out.println("A branch with that name already exists.");
             System.exit(0);
         }else {
-            Utils.writeContents(HEAD, branch);
             b.createNewFile();
-            Utils.writeContents(b, currHead);
+            Utils.writeContents(b, branch);
         }
     }
 

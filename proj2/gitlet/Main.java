@@ -1,5 +1,7 @@
 package gitlet;
 
+import java.io.IOException;
+
 /** Driver class for Gitlet, a subset of the Git version-control system.
  *  @author JOE
  */
@@ -21,7 +23,7 @@ public class Main {
      * reset
      * merge
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         // TODO: what if args is empty?
         if (args.length == 0) {
             System.out.print("Please enter a command.");
@@ -30,16 +32,27 @@ public class Main {
 
 
         String firstArg = args[0];
+        if (!Repository.GITLET_DIR.exists()) {
+            System.out.println("Not in an initialized Gitlet directory.");
+            System.exit(0);
+        }
         switch(firstArg) {
             case "init":
                 // TODO: handle the `init` command
+                Repository.init();
                 break;
             case "add":
+                Repository.add(args[1]);
                 // TODO: handle the `add [filename]` command
                 break;
             // TODO: FILL THE REST IN
             case "commit":
-
+                if (args.length != 2) {
+                    System.out.println("Please enter a commit message.");
+                    System.exit(0);
+                } else {
+                    Commit.commitInCurrBran(args[1]);
+                }
                 break;
             case "rm":
 

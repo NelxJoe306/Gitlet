@@ -138,13 +138,14 @@ public class TestOutOfTerminal {
 
         saveToStage("456.txt");
         branch("dev");
+        Utils.writeContents(HEAD, "dev");
         t = commitInCurrBran("test456");
 
-        String cb = Utils.readContentsAsString(HEAD);
+        String cb = Utils.readContentsAsString(HEAD); /* current branch */
         assertThat(cb).isEqualTo("dev");
 
-        String dh = Utils.readContentsAsString(Utils.join(ref, "dev"));
-        String mh = Utils.readContentsAsString(Utils.join(ref, "master"));
+        String dh = Utils.readContentsAsString(Utils.join(ref, "dev")); /*  dev hash */
+        String mh = Utils.readContentsAsString(Utils.join(ref, "master"));/* master hash*/
         assertThat(mh).isEqualTo(a);
         assertThat(dh).isEqualTo(t);
 
@@ -196,4 +197,43 @@ public class TestOutOfTerminal {
                 java.util.TreeMap.class);
         assertThat(m.containsKey("456.txt")).isTrue();
     }
+
+
+    @Test
+    public void testrm() throws IOException {
+        Path folder = Paths.get(GITLET_DIR.toURI());
+
+        Files.walk(folder)
+                .sorted(Comparator.reverseOrder())
+                .filter(path -> !path.equals(folder))
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+        GITLET_DIR.delete();
+        assertThat(GITLET_DIR.exists()).isFalse();
+        init();
+
+        File test123 = new File("123.txt");
+        Utils.writeContents(test123, "Hello");
+        add("123.txt");
+        commitInCurrBran("123");
+        Utils.writeContents(test123, "Bye");
+        add("123.txt");
+        File fs = Utils.join(stage_DIR, "files");
+        TreeMap<String, String> m = Utils.readObject(fs, java.util.TreeMap.class);
+        assertThat(m.containsKey("123.txt")).isTrue();
+        rm("123.txt");
+        m = Utils.readObject(fs, java.util.TreeMap.class);
+        assertThat(m.containsKey("123.txt")).isFalse();
+
+        rm("123.txt");
+        assertThat(test123.exists()).isFalse();
+
+    }
+
+
 }

@@ -71,7 +71,13 @@ public class Repository {
      *
      */
     public static void commit(String message) {
+        File fs = Utils.join(stage_DIR, "files");
+        if (!fs.exists()) {
+            System.out.println("No changes added to the commit.");
+            System.exit(0);
+        } else {
 
+        }
     }
 
     /**
@@ -85,6 +91,10 @@ public class Repository {
          * 3.if the file is identical to that in the current commit, do not stage it to be added,
          *     and remove it from the staging area if it is already there
          */
+        if (name.isEmpty()) {
+            System.out.println("File does not exist.");
+            System.exit(0);
+        }
         File f = Utils.join(CWD, name);
         if (!f.exists()) {
             System.out.println("File does not exist.");
@@ -103,5 +113,31 @@ public class Repository {
             saveToStage(name);
         }
     }
+    /**
+     *  Unstage the file if it is currently staged for addition.
+     *  If the file is tracked in the current commit,
+     *      stage it for removal and remove the file from the working directory
+     *      if the user has not already done so
+     *          (do not remove it unless it is tracked in the current commit).
+     */
+    public static void rm(String name) {
+        File CWDf = Utils.join(CWD, name);
+        File fs = Utils.join(stage_DIR, "files");
+        if (fs.exists()) {
+            TreeMap<String, String> m = Utils.readObject(fs, java.util.TreeMap.class);
+            if (m.containsKey(name)) {
+                m.remove(name);
+                Utils.writeObject(fs, m);
+                return;
+            }
+        }
+        if (Commit.currCommitFiles_map().containsKey(name)) {
+            CWDf.delete();
+        }else {
+            System.out.println("No reason to remove the file.");
+            System.exit(0);
+        }
+    }
+
 
 }
