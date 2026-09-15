@@ -2,12 +2,10 @@ package gitlet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import static gitlet.Blob.saveToStage;
 import static gitlet.Utils.*;
 
 // TODO: any imports you need here
@@ -38,8 +36,12 @@ public class Repository {
     public static final File stage_DIR = join(GITLET_DIR, "stage");
     /** The Commits directory. */
     public static final File Commit_DIR = join(GITLET_DIR, "commits");
-    /** The Commits LinkList.*/
-    public LinkedList<Commit> l = new LinkedList<>();
+    /** The Head to point current commit*/
+    public static String currHead;
+    /** The Branches File. */
+    public static final File HEAD = join(GITLET_DIR, "HEAD");
+    /** The Reference directory. */
+    public static final File ref = join(GITLET_DIR, "ref");
 
     /* TODO: fill in the rest of this class. */
 
@@ -56,6 +58,10 @@ public class Repository {
             blob_DIR.mkdir();
             Commit_DIR.mkdir();
             stage_DIR.mkdir();
+            HEAD.createNewFile();
+            ref.mkdir();
+            currHead = Commit.first_commit();
+            Utils.writeContents(HEAD, "master");
             //TODO: create an initial commit
 
         }
@@ -79,8 +85,23 @@ public class Repository {
          * 3.if the file is identical to that in the current commit, do not stage it to be added,
          *     and remove it from the staging area if it is already there
          */
-
-
+        File f = Utils.join(CWD, name);
+        if (!f.exists()) {
+            System.out.println("File does not exist.");
+            System.exit(0);
+        }else {
+            Commit c = Utils.readObject(Utils.join(Commit_DIR, currHead), Commit.class);
+            String hash = Utils.sha1(Utils.readContentsAsString(f));
+            TreeMap<String, String> m = Commit.currCommitFiles_map();
+            if (Utils.join(stage_DIR, "files").exists() && m.containsKey(name) && m.get(name).equals(hash)) {
+                File copyInStage = Utils.join(stage_DIR, "files");
+                TreeMap<String, String> text = Utils.readObject(copyInStage, java.util.TreeMap.class);
+                text.remove(name);
+                Utils.writeObject(copyInStage, text);
+                return;
+            }
+            saveToStage(name);
+        }
     }
 
 }
