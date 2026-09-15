@@ -5,6 +5,7 @@ package gitlet;
 import java.io.File;
 import java.io.Serializable;
 import java.util.Date; // TODO: You'll likely use this in this class
+import java.util.LinkedList;
 import java.util.TreeMap;
 
 import static gitlet.Repository.CWD;
@@ -34,22 +35,38 @@ public class Commit implements Serializable {
     /** The hash of this Commit. */
     private String self_hash;
     /** The map<String, String> of this Commit. */
-    private final TreeMap<String, String> nameToHash = new TreeMap<String, String>();
+    private TreeMap<String, String> nameToHash = new TreeMap<String, String>();
+
     /* TODO: fill in the rest of this class. */
 
-    public Commit(String massage, String name){
-        File f = Utils.join(CWD, name);
-        String hash = Utils.sha1(f);
-        File copy = Utils.join(stage_DIR, hash);
-        if (f.exists()) {
-            nameToHash.put(name, hash);
-        } else {
-            System.out.println("No changes added to the commit.");
-            System.exit(0);
-        }
-        this.message = massage;
+    /**
+     *
+     * @param info the commit message
+     * @param m  the map
+     * @param p  the node points to the parent
+     */
+    public Commit(String info, TreeMap<String, String> m, String p){
+        this.message = info;
+        this.nameToHash = m;
+        Date time = new Date();
+        this.timestamp = time.toString();
+
+        this.parent_hash = p;
+
+
+        this.self_hash = Utils.sha1(this);
 
     }
 
+    /**create the same first commit for every gitlet_init
+     *
+     *
+     */
+    public String first_commit() {
+        Commit first = new Commit("initial commit",new TreeMap<>(), null);
+        Date metaTime = new Date(0);
+        first.timestamp = metaTime.toString();
+        return first.self_hash;
+    }
 
 }

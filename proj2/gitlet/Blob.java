@@ -5,13 +5,14 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static gitlet.Repository.CWD;
 import static gitlet.Repository.stage_DIR;
 import static gitlet.Utils.join;
 
-public class Blob implements Serializable {
+public class Blob implements Serializable{
     /**
      * This class is to work as below:
      * 1. store the hash of the relative file
@@ -20,13 +21,17 @@ public class Blob implements Serializable {
     /**
      * @param fHash The file's hash
      * @param file The file
+     * @param text The content of file
      */
     private String fHash;
     private File file;
+    private String text;
 
     private Blob(File f) {
         this.file = f;
-        this.fHash = Utils.sha1(f);
+        String t = Utils.readContentsAsString(f);
+        this.fHash = Utils.sha1(t);
+        this.text = t;
     }
 
     /**
@@ -39,30 +44,24 @@ public class Blob implements Serializable {
      *             filename stores all the stage files' name by using newfilename and oldfilename
      */
     public static void saveToStage(String name) throws IOException {
-        File f = join(CWD, name);
+        File f = join(CWD, name);  /* target file to stage*/
         Blob b = new Blob(f);
+        TreeMap<String, String> m;
+
         File stageFile = join(stage_DIR, b.fHash);
+        File filelist = join(stage_DIR, "files");
 
-        File filename = join(stage_DIR, "files.txt");
-        String newfilename;
-
-        if (filename.exists()) {
-            String oldfilename = Utils.readContentsAsString(filename);
-            Set<String> names = Arrays.stream(oldfilename.split("\n")).collect(Collectors.toSet());
-            if (names.contains(name)) {
-                newfilename = oldfilename;
-            } else {
-                newfilename = oldfilename + name + "\n";
-            }
+        if (filelist.exists()) {
+           m = Utils.readObject(filelist, java.util.TreeMap.class);
         } else {
-            newfilename = name + "\n";
-            filename.createNewFile();
+            m = new TreeMap<>();
+            filelist.createNewFile();
         }
-        Utils.writeContents(filename, newfilename);
+        m.put(name, b.fHash);
+        Utils.writeObject(filelist, m);
 
         if (!stageFile.exists()) {
-            String text = Utils.readContentsAsString(b.file);
-            Utils.writeObject(stageFile, text);
+            Utils.writeContents(stageFile, b.text);
         }
     }
 
