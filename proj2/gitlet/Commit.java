@@ -30,7 +30,7 @@ public class Commit implements Serializable, Dumpable {
     /** The timestamp of this Commit. */
     private String timestamp;
     /** The parent commit's hash of this Commit. */
-    private String parent;
+    private final String parent;
     /** The second parent commit's hash of this Commit. */
     private String secondParent;
     /** The hash of this Commit. */
@@ -98,6 +98,7 @@ public class Commit implements Serializable, Dumpable {
         ncf.createNewFile();
         Utils.writeContents(currBranch, nc.self_hash);
         resetStage();
+        resetStage();
         return currHead;
     }
 
@@ -121,6 +122,29 @@ public class Commit implements Serializable, Dumpable {
     public static TreeMap<String, String> currCommitFiles_map() {
         Commit c = Utils.readObject(Utils.join(Commit_DIR, currHead), Commit.class);
         return c.nameToHash;
+    }
+
+    /**
+     * @return a list of information for log
+     * 1 date
+     * 2 message
+     * 3 self_hash
+     * 4 parent
+     * 5 6 if merged, then add a “Merge:” consist of the first seven digits of the first
+     *          and second parents’ commit ids
+     */
+    public List<String> returnInfo() {
+        List<String> l = new ArrayList<>();
+        l.add(this.timestamp);
+        l.add(this.message);
+        l.add(this.self_hash);
+        l.add(this.parent);
+        if (this.secondParent != null) {
+            l.add(this.parent.substring(0, 7));
+            l.add(this.secondParent.substring(0, 7));
+        }
+
+        return l;
     }
 
 

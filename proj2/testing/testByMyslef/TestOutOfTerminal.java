@@ -1,7 +1,11 @@
 package testing.testByMyslef;
 
 import gitlet.Commit;
+import gitlet.Repository;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,8 +24,9 @@ import static gitlet.Repository.*;
 
 public class TestOutOfTerminal {
 
-    @Test
-    public void testInit() throws IOException {
+    private static final Logger log = LoggerFactory.getLogger(TestOutOfTerminal.class);
+
+    public void reInit() throws IOException {
         Path folder = Paths.get(GITLET_DIR.toURI());
 
         Files.walk(folder)
@@ -37,6 +42,11 @@ public class TestOutOfTerminal {
         GITLET_DIR.delete();
         assertThat(GITLET_DIR.exists()).isFalse();
         init();
+    }
+
+    @Test
+    public void testInit() throws IOException {
+        reInit();
         assertThat("D:\\IDEA2025\\IDEAProject\\skeleton-sp21\\proj2\\.gitlet").
                 isEqualTo(GITLET_DIR.toString());
     }
@@ -83,23 +93,10 @@ public class TestOutOfTerminal {
         TreeMap nm = Utils.readObject(save, TreeMap.class);
         System.out.println(nm.toString());
     }
+
     @Test
     public void testCommitInCurr() throws IOException {
-        Path folder = Paths.get(GITLET_DIR.toURI());
-
-        Files.walk(folder)
-                .sorted(Comparator.reverseOrder())
-                .filter(path -> !path.equals(folder))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-        GITLET_DIR.delete();
-        assertThat(GITLET_DIR.exists()).isFalse();
-        init();
+        reInit();
         File test123 = new File("./123.txt");
         Utils.writeContents(test123, "Hello");
         saveToStage("123.txt");
@@ -113,21 +110,7 @@ public class TestOutOfTerminal {
 
     @Test
     public void testBranch() throws IOException {
-        Path folder = Paths.get(GITLET_DIR.toURI());
-
-        Files.walk(folder)
-                .sorted(Comparator.reverseOrder())
-                .filter(path -> !path.equals(folder))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-        GITLET_DIR.delete();
-        assertThat(GITLET_DIR.exists()).isFalse();
-        init();
+        reInit();
 
         File test123 = new File("./123.txt");
         Utils.writeContents(test123, "Hello");
@@ -157,21 +140,7 @@ public class TestOutOfTerminal {
 
     @Test
     public void testAdd() throws IOException {
-        Path folder = Paths.get(GITLET_DIR.toURI());
-
-        Files.walk(folder)
-                .sorted(Comparator.reverseOrder())
-                .filter(path -> !path.equals(folder))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-        GITLET_DIR.delete();
-        assertThat(GITLET_DIR.exists()).isFalse();
-        init();
+        reInit();
 
         File test123 = new File("./123.txt");
         Utils.writeContents(test123, "Hello");
@@ -201,21 +170,7 @@ public class TestOutOfTerminal {
 
     @Test
     public void testrm() throws IOException {
-        Path folder = Paths.get(GITLET_DIR.toURI());
-
-        Files.walk(folder)
-                .sorted(Comparator.reverseOrder())
-                .filter(path -> !path.equals(folder))
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-        GITLET_DIR.delete();
-        assertThat(GITLET_DIR.exists()).isFalse();
-        init();
+        reInit();
 
         File test123 = new File("123.txt");
         Utils.writeContents(test123, "Hello");
@@ -235,5 +190,77 @@ public class TestOutOfTerminal {
 
     }
 
+    @Test
+    public void testLog() throws IOException {
+        reInit();
 
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        commitInCurrBran("123.txt");
+        Repository.log();
+
+        saveToStage("456.txt");
+        commitInCurrBran("456.txt");
+        Repository.log();
+        Repository.global_log();
+    }
+
+    @Test
+    public void testFind() throws IOException {
+        reInit();
+
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        commitInCurrBran("same");
+
+        saveToStage("456.txt");
+        commitInCurrBran("same");
+        Repository.find("same");
+        Repository.find("diff");
+    }
+
+    @Test
+    public void teststatus() throws IOException {
+        reInit();
+
+        Repository.status();
+        File test123 = Utils.join(CWD, "123.txt");
+        Utils.writeContents(test123, "Hello");
+        if (!test123.exists()) {
+            test123.createNewFile();
+        }
+        saveToStage("123.txt");
+        String t = commitInCurrBran("test123");
+        Commit t123 = Utils.readObject(Utils.join(Commit_DIR, t), Commit.class);
+        Repository.status();
+
+        System.out.println("test123 changed");
+        Utils.writeContents(test123, "Bye");
+        Repository.status();
+        System.out.println("test123 deleted");
+        rm("123.txt");
+        Repository.status();
+
+        saveToStage("456.txt");
+        branch("dev");
+        Utils.writeContents(HEAD, "dev");
+        t = commitInCurrBran("test456");
+        Repository.status();
+
+        File test789 = Utils.join(CWD, "789.txt");
+        if (!test789.exists()) {
+            test789.createNewFile();
+        }
+        Utils.writeContents(test789, "Zelda");
+        saveToStage("789.txt");
+        rm("789.txt");
+        Repository.status();
+
+        saveToStage("789.txt");
+        test789.delete();
+        Repository.status();
+
+    }
 }

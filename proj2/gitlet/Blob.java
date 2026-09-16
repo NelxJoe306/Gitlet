@@ -8,8 +8,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static gitlet.Repository.CWD;
-import static gitlet.Repository.stage_DIR;
+import static gitlet.Repository.*;
 import static gitlet.Utils.join;
 
 public class Blob implements Serializable{
@@ -52,6 +51,9 @@ public class Blob implements Serializable{
         File filelist = join(stage_DIR, "files");
 
 
+        if (Utils.join(removal, name).exists()) {
+            Utils.join(removal, name).delete();
+        }
 
         if (filelist.exists()) {
            m = Utils.readObject(filelist, java.util.TreeMap.class);
@@ -72,6 +74,18 @@ public class Blob implements Serializable{
      */
     public static void resetStage() {
         File[] files = stage_DIR.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                file.delete();
+            }
+        }
+    }
+
+    /**
+     * reset the stage after commiting
+     */
+    public static void resetRemoval() {
+        File[] files = removal.listFiles();
         if (files != null) {
             for (File file : files) {
                 file.delete();
