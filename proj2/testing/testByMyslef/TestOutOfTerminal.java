@@ -18,8 +18,7 @@ import java.util.TreeMap;
 import static com.google.common.truth.Truth.assertThat;
 import static gitlet.Blob.resetStage;
 import static gitlet.Blob.saveToStage;
-import static gitlet.Commit.branch;
-import static gitlet.Commit.commitInCurrBran;
+import static gitlet.Commit.*;
 import static gitlet.Repository.*;
 
 public class TestOutOfTerminal {
@@ -263,4 +262,139 @@ public class TestOutOfTerminal {
         Repository.status();
 
     }
+
+    @Test
+    public void testcheck1() throws IOException {
+        reInit();
+
+        File test123 = Utils.join(CWD, "123.txt");
+        Utils.writeContents(test123, "Hello");
+        if (!test123.exists()) {
+            test123.createNewFile();
+        }
+        saveToStage("123.txt");
+        String t = commitInCurrBran("test123");
+
+        test123.delete();
+        assertThat(test123.exists()).isFalse();
+
+        check_file("123.txt");
+        assertThat(test123.exists()).isTrue();
+
+        Utils.writeContents(test123, "Bye");
+        check_file("123.txt");
+        String s = Utils.readContentsAsString(test123);
+        assertThat(s).isEqualTo("Hello");
+
+
+    }
+
+    @Test
+    public void testcheck2() throws IOException {
+        reInit();
+
+        File test123 = Utils.join(CWD, "123.txt");
+        Utils.writeContents(test123, "Hello");
+        if (!test123.exists()) {
+            test123.createNewFile();
+        }
+        saveToStage("123.txt");
+        String t = commitInCurrBran("test123");
+
+        test123.delete();
+        assertThat(test123.exists()).isFalse();
+
+        Utils.writeContents(test123, "Bye");
+        saveToStage("123.txt");
+        commitInCurrBran("test123");
+
+        check_id(t, "123.txt");
+        assertThat(test123.exists()).isTrue();
+
+        String s = Utils.readContentsAsString(test123);
+        assertThat(s).isEqualTo("Hello");
+
+        check_id("13214", "123");
+        check_id(t, "123");
+
+
+
+    }
+
+    @Test
+    public void testcheck3() throws IOException {
+        reInit();
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        String t = commitInCurrBran("test123");
+        String a = t;
+        Commit t123 = Utils.readObject(Utils.join(Commit_DIR, t), Commit.class);
+
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test456, "World");
+        saveToStage("456.txt");
+        branch("dev");
+        Utils.writeContents(HEAD, "dev");
+        t = commitInCurrBran("test456");
+
+
+        check_branch("master");
+        assertThat(Utils.readContentsAsString(Utils.join(GITLET_DIR, "HEAD")))
+                .isEqualTo("master");
+        assertThat(test456.exists()).isFalse();
+
+
+    }
+
+    @Test
+    public void testrm_branch() throws IOException {
+        reInit();
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        String t = commitInCurrBran("test123");
+        String a = t;
+        Commit t123 = Utils.readObject(Utils.join(Commit_DIR, t), Commit.class);
+
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test456, "World");
+        saveToStage("456.txt");
+        branch("dev");
+        Utils.writeContents(HEAD, "dev");
+        t = commitInCurrBran("test456");
+
+
+        check_branch("master");
+        rm_branch("dev");
+        assertThat(Utils.plainFilenamesIn(ref).contains("dev")).isFalse();
+
+
+    }
+    @Test
+    public void testreset() throws IOException {
+        reInit();
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        String t = commitInCurrBran("test123");
+
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test123, "Good");
+        Utils.writeContents(test456, "World");
+        saveToStage("456.txt");
+        saveToStage("123.txt");
+        branch("dev");
+        commitInCurrBran("456");
+        Utils.writeContents(HEAD, "dev");
+        File test789 = Utils.join(CWD, "789.txt");
+        Utils.writeContents(test789, "Link");
+
+        reset(t);
+        assertThat(test789.exists()).isTrue();
+        assertThat(test456.exists()).isFalse();
+        assertThat(Utils.readContentsAsString(test123).equals("Good")).isFalse();
+        assertThat(Utils.readContentsAsString(test123).equals("Hello")).isTrue();
+    }
+
 }

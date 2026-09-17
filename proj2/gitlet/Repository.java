@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static gitlet.Blob.resetStage;
 import static gitlet.Blob.saveToStage;
+import static gitlet.Commit.currCommitFiles_map;
 import static gitlet.Utils.*;
 
 // TODO: any imports you need here
@@ -82,7 +84,7 @@ public class Repository {
             ref.mkdir();
             removal.mkdir();
             currHead = Commit.first_commit();
-            Utils.writeContents(HEAD, "master");
+            writeContents(HEAD, "master");
             //TODO: create an initial commit
 
         }
@@ -92,7 +94,7 @@ public class Repository {
      *
      */
     public static void commit(String message) {
-        File fs = Utils.join(stage_DIR, "files");
+        File fs = join(stage_DIR, "files");
         if (!fs.exists()) {
             System.out.println("No changes added to the commit.");
             System.exit(0);
@@ -116,19 +118,19 @@ public class Repository {
             System.out.println("File does not exist.");
             System.exit(0);
         }
-        File f = Utils.join(CWD, name);
+        File f = join(CWD, name);
         if (!f.exists()) {
             System.out.println("File does not exist.");
             System.exit(0);
         } else {
-            Commit c = Utils.readObject(Utils.join(Commit_DIR, currHead), Commit.class);
-            String hash = Utils.sha1(Utils.readContentsAsString(f));
-            TreeMap<String, String> m = Commit.currCommitFiles_map();
-            if (Utils.join(stage_DIR, "files").exists() && m.containsKey(name) && m.get(name).equals(hash)) {
-                File copyInStage = Utils.join(stage_DIR, "files");
-                TreeMap<String, String> text = Utils.readObject(copyInStage, java.util.TreeMap.class);
+            Commit c = readObject(join(Commit_DIR, currHead), Commit.class);
+            String hash = sha1(readContentsAsString(f));
+            TreeMap<String, String> m = currCommitFiles_map();
+            if (join(stage_DIR, "files").exists() && m.containsKey(name) && m.get(name).equals(hash)) {
+                File copyInStage = join(stage_DIR, "files");
+                TreeMap<String, String> text = readObject(copyInStage, TreeMap.class);
                 text.remove(name);
-                Utils.writeObject(copyInStage, text);
+                writeObject(copyInStage, text);
                 return;
             }
             saveToStage(name);
@@ -143,25 +145,25 @@ public class Repository {
      * (do not remove it unless it is tracked in the current commit).
      */
     public static void rm(String name) throws IOException {
-        File CWDf = Utils.join(CWD, name);
-        File fs = Utils.join(stage_DIR, "files");
+        File CWDf = join(CWD, name);
+        File fs = join(stage_DIR, "files");
         if (fs.exists()) {
-            TreeMap<String, String> m = Utils.readObject(fs, java.util.TreeMap.class);
+            TreeMap<String, String> m = readObject(fs, TreeMap.class);
             if (m.containsKey(name)) {
                 m.remove(name);
-                Utils.writeObject(fs, m);
-                String content = Utils.readContentsAsString(CWDf);
-                File r = Utils.join(removal, name);
+                writeObject(fs, m);
+                String content = readContentsAsString(CWDf);
+                File r = join(removal, name);
                 if (r.exists()) {
-                    Utils.writeContents(r, content);
+                    writeContents(r, content);
                 } else {
                     r.createNewFile();
-                    Utils.writeContents(r, content);
+                    writeContents(r, content);
                 }
                 return;
             }
         }
-        if (Commit.currCommitFiles_map().containsKey(name)) {
+        if (currCommitFiles_map().containsKey(name)) {
             CWDf.delete();
         } else {
             System.out.println("No reason to remove the file.");
@@ -200,13 +202,13 @@ public class Repository {
 
         String time = " ";
         Commit hc; /*history commit*/
-        File cf = Utils.join(Commit_DIR, currHead);
-        Commit cc = Utils.readObject(cf, Commit.class);
+        File cf = join(Commit_DIR, currHead);
+        Commit cc = readObject(cf, Commit.class);
         p = cc.returnInfo().get(3);
-        File hf = Utils.join(Commit_DIR, p);
+        File hf = join(Commit_DIR, p);
         List<String> l;
         while (!time.equals(initTime)) {
-            hc = Utils.readObject(hf, Commit.class);
+            hc = readObject(hf, Commit.class);
             l = hc.returnInfo();
             ts = l.get(0);
             me = l.get(1);
@@ -225,8 +227,8 @@ public class Repository {
                 return;
             }
             time = l.get(0);
-            hf = Utils.join(Commit_DIR, p);
-            hc = Utils.readObject(hf, Commit.class);
+            hf = join(Commit_DIR, p);
+            hc = readObject(hf, Commit.class);
             l = hc.returnInfo();
         }
     }
@@ -246,8 +248,8 @@ public class Repository {
         String par;
         String secPar;
         for (String s : l) {
-            f = Utils.join(Commit_DIR, s);
-            c = Utils.readObject(f, Commit.class);
+            f = join(Commit_DIR, s);
+            c = readObject(f, Commit.class);
             l = c.returnInfo();
             ts = l.get(0);
             me = l.get(1);
@@ -277,8 +279,8 @@ public class Repository {
         List<String> arr_c = new ArrayList<>();
 
         for (String s : l) {
-            f = Utils.join(Commit_DIR, s);
-            c = Utils.readObject(f, Commit.class);
+            f = join(Commit_DIR, s);
+            c = readObject(f, Commit.class);
             List<String> la = c.returnInfo();
             m = la.get(1);
             if (Objects.equals(fm, m)) {
@@ -320,8 +322,8 @@ public class Repository {
      */
     public static void status() {
         /*  branches  */
-        String currb = Utils.readContentsAsString(Utils.join(GITLET_DIR, "HEAD"));
-        List<String> l = Utils.plainFilenamesIn(ref);
+        String currb = readContentsAsString(join(GITLET_DIR, "HEAD"));
+        List<String> l = plainFilenamesIn(ref);
         System.out.println("=== Branches ===");
         for (String s : l) {
             if (Objects.equals(s, currb)) {
@@ -332,7 +334,7 @@ public class Repository {
         }
         System.out.println("\n");
         /*  staged files  */
-        File f = Utils.join(stage_DIR, "files");
+        File f = join(stage_DIR, "files");
         Set<String> sf;
         System.out.println("=== Staged files ===");
 
@@ -347,7 +349,7 @@ public class Repository {
         System.out.println("\n");
 
         /*removed files*/
-        l = Utils.plainFilenamesIn(removal);
+        l = plainFilenamesIn(removal);
         System.out.println("=== Removed Files ===");
         if (l != null) {
             for (String s : l) {
@@ -358,10 +360,10 @@ public class Repository {
 
         /* === Modifications Not Staged For Commit === */
         System.out.println("=== Modifications Not Staged For Commit ===");
-        File ccf = Utils.join(Commit_DIR, currHead); /*current commit file*/
-        Commit cc = Utils.readObject(ccf, Commit.class);
-        l = Utils.plainFilenamesIn(CWD);
-        TreeMap<String, String> m = Commit.currCommitFiles_map();
+        File ccf = join(Commit_DIR, currHead); /*current commit file*/
+        Commit cc = readObject(ccf, Commit.class);
+        l = plainFilenamesIn(CWD);
+        TreeMap<String, String> m = currCommitFiles_map();
         Set<String> cf = m.keySet();
         /*
         Tracked in the current commit, changed in the working directory, but not staged; or
@@ -373,16 +375,16 @@ public class Repository {
         cf -> current commit files
          */
         if (f.exists()) {
-            TreeMap<String, String> stage_m = Utils.readObject(f, TreeMap.class);
+            TreeMap<String, String> stage_m = readObject(f, TreeMap.class);
             sf = readObject(f, TreeMap.class).keySet();
             for (String s : sf) {
-                File cwd_f = Utils.join(CWD, s);
+                File cwd_f = join(CWD, s);
                 if (!cwd_f.exists()) {
                     System.out.format("%s(deleted)%n", s);
                 }
             }
             for (String s : l) {
-                String CWDf_hash = Utils.sha1(Utils.readContentsAsString(Utils.join(CWD, s)));
+                String CWDf_hash = sha1(readContentsAsString(join(CWD, s)));
                 if ((cf.contains(s) && !sf.contains(s) && !CWDf_hash.equals(m.get(s))) ||
                         (stage_m.containsKey(s) && !CWDf_hash.equals(stage_m.get(s)))) {
                     System.out.format("%s(modified)%n", s);
@@ -391,22 +393,22 @@ public class Repository {
 
         } else {
             for (String s : l) {
-                String CWDf_hash = Utils.sha1(Utils.readContentsAsString(Utils.join(CWD, s)));
+                String CWDf_hash = sha1(readContentsAsString(join(CWD, s)));
                 if (cf.contains(s) && !CWDf_hash.equals(m.get(s))) {
                     System.out.format("%s(modified)%n", s);
                 }
             }
 
-            List<String> rml = Utils.plainFilenamesIn(removal);
+            List<String> rml = plainFilenamesIn(removal);
             for (String s : cf) {
-                File cwd_f = Utils.join(CWD, s);
+                File cwd_f = join(CWD, s);
                 if (!cwd_f.exists()) {
                     System.out.format("%s(deleted)%n", s);
                 }
             }
             if (rml != null) {
                 for (String s : rml) {
-                    l = Utils.plainFilenamesIn(CWD);
+                    l = plainFilenamesIn(CWD);
                     if (l != null && cf.contains(s) && !l.contains(s)) {
                         System.out.format("%s(deleted)%n", s);
                     }
@@ -418,7 +420,7 @@ public class Repository {
     * Files present in the working directory
     * but neither staged for addition nor tracked.  */
         System.out.println("=== Untracked Files ===");
-        l = Utils.plainFilenamesIn(CWD);
+        l = plainFilenamesIn(CWD);
 
         if (l != null) {
             sf = f.exists()
@@ -433,6 +435,215 @@ public class Repository {
         }
         System.out.println("\n");
     }
+
+    /**
+     * checkout -- [file name]
+     * Takes the version of the file as it exists in the head commit and puts it in the working directory,
+     * overwriting the version of the file that’s already there if there is one.
+     * The new version of the file is not staged.
+     *
+     */
+    public static void check_file(String name) throws IOException {
+        TreeMap<String,String> curr_com_m = currCommitFiles_map();
+        if (!curr_com_m.containsKey(name)) {
+            System.out.println("File does not exist in that commit.");
+        }else {
+            File cwd_f = join(CWD, name);
+            String hash = curr_com_m.get(name);
+            String text = readContentsAsString(join(blob_DIR, hash));
+            writeContents(cwd_f, text);
+            if (!cwd_f.exists()) {
+                cwd_f.createNewFile();
+            }
+        }
+    }
+    /**
+     *  checks the commit with the given id, and puts it in the working directory,
+     *  overwriting the version of the file that’s already there if there is one.
+     *  The new version of the file is not staged.
+     */
+    public static void check_id (String id, String name) throws IOException {
+        String full_id = findCommitId(id);
+        File aim_com = join(Commit_DIR, full_id);
+        if (!aim_com.exists()) {
+            System.out.println("No commit with that id exists.");
+        }else {
+            String p = currHead;
+            currHead = full_id;
+            check_file(name);
+            currHead = p;
+        }
+    }
+
+    /**
+     * find the id by using characters fewer than 40
+     *
+     */
+    private static String findCommitId(String id) {
+        List<String> commits_name = plainFilenamesIn(Commit_DIR);
+        String result = "A";
+        if (commits_name == null) {
+            return result;
+        }
+        int i = 0;
+        for (String s : commits_name) {
+            if (s.startsWith(id)) {
+                result = s;
+            }
+        }
+        return result;
+    }
+
+    /**
+     *  The commit at the head of the given branch, and puts them in the working directory,
+     *      overwriting the versions of the files that are already there if they exist.
+     *  At the end of this command,
+     *      the given branch will now be considered the current branch (HEAD)
+     *  Files that are tracked in the current branch
+     *      but are not present in the checked-out branch are deleted.
+     *  The staging area is cleared, unless the checked-out branch is the current branch.
+     */
+    public static void check_branch(String name) throws IOException {
+        /*check if is untracked*/
+        List<String> l = plainFilenamesIn(CWD);
+        File f = Utils.join(stage_DIR, "files");
+        Set<String> sf;
+        Map<String, String> cf = currCommitFiles_map();
+
+        if (l != null) {
+            sf = f.exists()
+                    ? readObject(f, TreeMap.class).keySet()
+                    : Collections.emptySet();
+
+            for (String s : l) {
+                if (!cf.containsKey(s) && !sf.contains(s)) {
+                    System.out.println("There is an untracked file in the way; " +
+                            "delete it, or add and commit it first.");
+
+                }
+            }
+        }
+
+        /*check if the branch exists*/
+        List<String> branches = Utils.plainFilenamesIn(ref);
+        if (!branches.contains(name)) {
+            System.out.println("No such branch exists.");
+            System.exit(0);
+        }
+        /*check if is the current branch*/
+        File head_file = Utils.join(GITLET_DIR, "HEAD");
+        if (readContentsAsString(head_file).equals(name)) {
+            System.out.println("No need to checkout the current branch.");
+            System.exit(0);
+        }
+
+        File rev_bran = Utils.join(ref, name);
+        currHead = Utils.readContentsAsString(rev_bran);
+        Utils.writeContents(Utils.join(GITLET_DIR, "HEAD"), name);
+        TreeMap<String, String> cm = currCommitFiles_map();
+        for (String s : cm.keySet()) {
+            File copy = Utils.join(CWD, s);
+            String content = Utils.readContentsAsString(Utils.join(blob_DIR, cm.get(s)));
+            Utils.writeContents(copy, content);
+            if (!copy.exists()) {
+                copy.createNewFile();
+            }
+        }
+        for (String s : cf.keySet()) {
+            if (!cm.containsKey(s)) {
+                Utils.join(CWD, s).delete();
+            }
+        }
+        resetStage();
+    }
+
+    /**
+     * Reset the current branch to the given commit.
+     * The working directory is updated to match the given commit,
+     * and the staging area is cleared.
+     */
+    public static void reset(String id) {
+
+        String full_id = findCommitId(id);
+
+        if (full_id == null) {
+            System.out.println("No commit with that id exists.");
+            return;
+        }
+
+        File aim_com = join(Commit_DIR, full_id);
+
+        if (!aim_com.exists()) {
+            System.out.println("No commit with that id exists.");
+            return;
+        }
+
+        Map<String, String> cf = currCommitFiles_map();
+
+        String oldHead = currHead;
+        currHead = full_id;
+        Map<String, String> targetFiles = currCommitFiles_map();
+        currHead = oldHead;
+
+        List<String> files = plainFilenamesIn(CWD);
+
+        if (files != null) {
+
+            File stageFile = Utils.join(stage_DIR, "files");
+
+            Set<String> stagedFiles = stageFile.exists()
+                    ? readObject(stageFile, TreeMap.class).keySet()
+                    : Collections.emptySet();
+
+            for (String fileName : files) {
+
+                if (!cf.containsKey(fileName)
+                        && !stagedFiles.contains(fileName)
+                        && targetFiles.containsKey(fileName)) {
+
+                    System.out.println(
+                            "There is an untracked file in the way; "
+                                    + "delete it, or add and commit it first."
+                    );
+
+                    return;
+                }
+            }
+        }
+
+        for (String fileName : cf.keySet()) {
+
+            if (!targetFiles.containsKey(fileName)) {
+                Utils.join(CWD, fileName).delete();
+            }
+        }
+
+        for (String fileName : targetFiles.keySet()) {
+
+            File file = Utils.join(CWD, fileName);
+
+            String content = Utils.readContentsAsString(
+                    Utils.join(blob_DIR, targetFiles.get(fileName))
+            );
+
+            Utils.writeContents(file, content);
+        }
+
+        currHead = full_id;
+
+        String currentBranch = Utils.readContentsAsString(
+                Utils.join(GITLET_DIR, "HEAD")
+        );
+
+        Utils.writeContents(
+                Utils.join(ref, currentBranch),
+                full_id
+        );
+
+        resetStage();
+    }
+
+
 }
 
 

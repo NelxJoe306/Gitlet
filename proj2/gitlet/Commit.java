@@ -80,26 +80,34 @@ public class Commit implements Serializable, Dumpable {
      * commiting a new commit in *current* branch
      */
     public static String commitInCurrBran(String me) throws IOException {
-        TreeMap<String, String> m = Utils.readObject(Utils.join(stage_DIR, "files"),
-                java.util.TreeMap.class);
-        Commit nc = new Commit(me, m, currHead);
-        File currBranch = Utils.join(ref, Utils.readContentsAsString(HEAD));
-        byte[] text = Utils.serialize(nc);
-        nc.self_hash = Utils.sha1(text);
-        currHead = nc.self_hash;
-        String[] files = nc.nameToHash.keySet().toArray(new String[0]);
-        for (String name : files) {
-            File f = Utils.join(stage_DIR, nc.nameToHash.get(name));
-            File copy = Utils.join(blob_DIR, nc.nameToHash.get(name));
-            Utils.writeContents(copy, Utils.readContentsAsString(f));
+        File fs = Utils.join(stage_DIR, "files");
+        if (fs.exists()) {
+            TreeMap<String, String> m = Utils.readObject(Utils.join(stage_DIR, "files"),
+                    java.util.TreeMap.class);
+            Commit nc = new Commit(me, m, currHead);
+            File currBranch = Utils.join(ref, Utils.readContentsAsString(HEAD));
+            byte[] text = Utils.serialize(nc);
+            nc.self_hash = Utils.sha1(text);
+            currHead = nc.self_hash;
+            String[] files = nc.nameToHash.keySet().toArray(new String[0]);
+            for (String name : files) {
+                File f = Utils.join(stage_DIR, nc.nameToHash.get(name));
+                File copy = Utils.join(blob_DIR, nc.nameToHash.get(name));
+                Utils.writeContents(copy, Utils.readContentsAsString(f));
+            }
+            File ncf = Utils.join(Commit_DIR, nc.self_hash);
+            Utils.writeObject(ncf, nc);
+            ncf.createNewFile();
+            Utils.writeContents(currBranch, nc.self_hash);
+            resetStage();
+            resetStage();
+            return currHead;
+        }else {
+            System.out.println("No changes added to the commit.");
+            System.exit(0);
         }
-        File ncf = Utils.join(Commit_DIR, nc.self_hash);
-        Utils.writeObject(ncf, nc);
-        ncf.createNewFile();
-        Utils.writeContents(currBranch, nc.self_hash);
-        resetStage();
-        resetStage();
-        return currHead;
+
+        return me;
     }
 
     /**
@@ -114,6 +122,30 @@ public class Commit implements Serializable, Dumpable {
             b.createNewFile();
             Utils.writeContents(b, branch);
         }
+    }
+
+    /**
+     * Deletes the branch with the given name.
+     * This only means to delete the pointer associated with the branch;
+     * it does not mean to delete all commits that were created under the branch,
+     * or anything like that.
+     */
+    public static void rm_branch(String name) {
+        /* if the branch exists*/
+        List<String> branches = Utils.plainFilenamesIn(ref);
+        if (!branches.contains(name)) {
+            System.out.println("A branch with that name does not exist.");
+            System.exit(0);
+        }
+        /* if is the current branch */
+        String curr_bran = Utils.readContentsAsString(Utils.join(GITLET_DIR, "HEAD"));
+        if (curr_bran.equals(name)) {
+            System.out.println("Cannot remove the current branch.");
+            System.exit(0);
+        }
+
+        File bran_rev = Utils.join(ref, name);
+        bran_rev.delete();
     }
 
     /**
