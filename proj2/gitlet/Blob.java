@@ -3,10 +3,7 @@ package gitlet;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static gitlet.Repository.*;
 import static gitlet.Utils.join;
@@ -18,9 +15,9 @@ public class Blob implements Serializable{
      * 2. serializable for better creating the commit
      */
     /**
-     * @param fHash The file's hash
-     * @param file The file
-     * @param text The content of file
+     *  fHash The file's hash
+     *  file The file
+     *  text The content of file
      */
     private String fHash;
     private File file;

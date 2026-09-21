@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.List;
 import java.util.TreeMap;
 
 
@@ -101,6 +102,8 @@ public class TestOutOfTerminal {
         saveToStage("123.txt");
         String t = commitInCurrBran("test123");
         assertThat(t).isEqualTo(currHead);
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test456, "World");
         saveToStage("456.txt");
         t = commitInCurrBran("test456");
         assertThat(t).isEqualTo(currHead);
@@ -118,6 +121,8 @@ public class TestOutOfTerminal {
         String a = t;
         Commit t123 = Utils.readObject(Utils.join(Commit_DIR, t), Commit.class);
 
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test456, "World");
         saveToStage("456.txt");
         branch("dev");
         Utils.writeContents(HEAD, "dev");
@@ -214,6 +219,8 @@ public class TestOutOfTerminal {
         saveToStage("123.txt");
         commitInCurrBran("same");
 
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test456, "World");
         saveToStage("456.txt");
         commitInCurrBran("same");
         Repository.find("same");
@@ -242,6 +249,8 @@ public class TestOutOfTerminal {
         rm("123.txt");
         Repository.status();
 
+        File t456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(t456, "World");
         saveToStage("456.txt");
         branch("dev");
         Utils.writeContents(HEAD, "dev");
@@ -397,4 +406,171 @@ public class TestOutOfTerminal {
         assertThat(Utils.readContentsAsString(test123).equals("Hello")).isTrue();
     }
 
+    @Test
+    public void testMergeFastForward() throws IOException {
+        reInit();
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        String t1 = commitInCurrBran("initial master");
+
+        branch("dev");
+        check_branch("dev");
+
+        File test456 = Utils.join(CWD, "456.txt");
+        Utils.writeContents(test456, "Dev World");
+        saveToStage("456.txt");
+        saveToStage("123.txt");
+        String t2 = commitInCurrBran("dev commit");
+
+        check_branch("master");
+        assertThat(test456.exists()).isFalse();
+
+        merge("dev");
+        assertThat(test456.exists()).isTrue();
+        assertThat(Utils.readContentsAsString(test456)).isEqualTo("Dev World");
+        assertThat(currHead).isEqualTo(t2);
+    }
+
+    @Test
+    public void testMergeAncestor() throws IOException {
+        reInit();
+        File test123 = new File("./123.txt");
+        Utils.writeContents(test123, "Hello");
+        saveToStage("123.txt");
+        commitInCurrBran("commit 1");
+
+        branch("dev");
+
+        Utils.writeContents(test123, "Hello World");
+        saveToStage("123.txt");
+        String masterHead = commitInCurrBran("commit 2");
+
+        merge("dev");
+        assertThat(currHead).isEqualTo(masterHead);
+        assertThat(Utils.readContentsAsString(test123)).isEqualTo("Hello World");
+    }
+
+    @Test
+    public void testMergeNormalThreeWay() throws IOException {
+        reInit();
+        // Split point setup
+        File f1 = new File("./f1.txt");
+        File f2 = new File("./f2.txt");
+        File f3 = new File("./f3.txt");
+        Utils.writeContents(f1, "f1 init\n");
+        Utils.writeContents(f2, "f2 init\n");
+        Utils.writeContents(f3, "f3 init\n");
+        saveToStage("f1.txt");
+        saveToStage("f2.txt");
+        saveToStage("f3.txt");
+        String splitId = commitInCurrBran("split commit");
+
+        branch("dev");
+
+        // Master branch modifications
+        Utils.writeContents(f1, "f1 modified in master\n");
+        File f4 = new File("./f4.txt");
+        Utils.writeContents(f4, "f4 master only\n");
+        saveToStage("f1.txt");
+        saveToStage("f2.txt");
+        saveToStage("f3.txt");
+        saveToStage("f4.txt");
+        String masterCommit = commitInCurrBran("master changes");
+
+        // Dev branch modifications
+        check_branch("dev");
+        Utils.writeContents(f2, "f2 modified in dev\n");
+        File f5 = new File("./f5.txt");
+        Utils.writeContents(f5, "f5 dev only\n");
+        saveToStage("f1.txt");
+        saveToStage("f2.txt");
+        saveToStage("f5.txt");
+        // Remove f3 from dev
+        rm("f3.txt");
+        String devCommit = commitInCurrBran("dev changes");
+
+        // Switch back to master and merge dev
+        check_branch("master");
+        merge("dev");
+
+        // Rule 1: f2 modified in given, not in curr -> taken from dev
+        assertThat(Utils.readContentsAsString(f2)).isEqualTo("f2 modified in dev\n");
+        // Rule 2: f1 modified in curr, not in given -> kept from master
+        assertThat(Utils.readContentsAsString(f1)).isEqualTo("f1 modified in master\n");
+        // Rule 4: f4 present only in master -> kept
+        assertThat(Utils.readContentsAsString(f4)).isEqualTo("f4 master only\n");
+        // Rule 5: f5 present only in dev -> added
+        assertThat(Utils.readContentsAsString(f5)).isEqualTo("f5 dev only\n");
+        // Rule 6: f3 absent in dev, unmodified in master -> deleted
+        assertThat(f3.exists()).isFalse();
+
+        // Verify merge commit parents
+        List<String> parents = Commit.return_parents(currHead);
+        assertThat(parents.size()).isEqualTo(2);
+        assertThat(parents.get(0)).isEqualTo(masterCommit);
+        assertThat(parents.get(1)).isEqualTo(devCommit);
+    }
+
+    @Test
+    public void testMergeConflict() throws IOException {
+        reInit();
+        File f1 = new File("./f1.txt");
+        Utils.writeContents(f1, "base content\n");
+        saveToStage("f1.txt");
+        commitInCurrBran("base commit");
+
+        branch("dev");
+
+        Utils.writeContents(f1, "master content\n");
+        saveToStage("f1.txt");
+        String masterCommit = commitInCurrBran("master modify");
+
+        check_branch("dev");
+        Utils.writeContents(f1, "dev content\n");
+        saveToStage("f1.txt");
+        String devCommit = commitInCurrBran("dev modify");
+
+        check_branch("master");
+        merge("dev");
+
+        String expected = "<<<<<<< HEAD\nmaster content\n=======\ndev content\n>>>>>>>\n";
+        assertThat(Utils.readContentsAsString(f1)).isEqualTo(expected);
+
+        List<String> parents = Commit.return_parents(currHead);
+        assertThat(parents.size()).isEqualTo(2);
+        assertThat(parents.get(0)).isEqualTo(masterCommit);
+        assertThat(parents.get(1)).isEqualTo(devCommit);
+    }
+
+    @Test
+    public void testRemoteOperations() throws IOException {
+        reInit();
+        File remoteDir = new File(CWD, "remote_repo");
+        if (remoteDir.exists()) {
+            Files.walk(remoteDir.toPath())
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+        }
+        File remoteGitlet = new File(remoteDir, ".gitlet");
+        remoteGitlet.mkdirs();
+        new File(remoteGitlet, "commits").mkdirs();
+        new File(remoteGitlet, "blobs").mkdirs();
+        new File(remoteGitlet, "ref").mkdirs();
+
+        add_remote("origin", remoteGitlet.getPath());
+        File rf = new File(remotes_DIR, "origin");
+        assertThat(rf.exists()).isTrue();
+
+        rm_remote("origin");
+        assertThat(rf.exists()).isFalse();
+
+        if (remoteDir.exists()) {
+            Files.walk(remoteDir.toPath())
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+        }
+    }
 }

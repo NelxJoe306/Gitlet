@@ -1,28 +1,23 @@
 package gitlet;
 
-// TODO: any imports you need here
-
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static gitlet.Blob.resetStage;
 import static gitlet.Repository.*;
 
 /** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
- *  does at a high level.
+ *  It stores commit metadata including log message, timestamp, parent pointer(s),
+ *  and a mapping of tracked filenames to blob SHA-1 hashes.
  *
- *  @author TODO
+ *  @author JOE
  */
 public class Commit implements Serializable, Dumpable {
     /**
-     * TODO: add instance variables here.
-     *
-     * List all instance variables of the Commit class here with a useful
-     * comment above them describing what that variable represents and how that
-     * variable is used. We've provided one example for `message`.
+     * Instance variables of the Commit class representing metadata and file mappings.
      */
 
     /** The message of this Commit. */
@@ -38,13 +33,17 @@ public class Commit implements Serializable, Dumpable {
     /** The map<String, String> of this Commit. */
     private TreeMap<String, String> nameToHash = new TreeMap<String, String>();
 
-    /* TODO: fill in the rest of this class. */
+    private static String formatDate(Date date) {
+        SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z", Locale.US);
+        return sdf.format(date);
+    }
 
     /**
+     * Creates a new Commit object with a single parent.
      *
      * @param info the commit message
-     * @param m  the map
-     * @param p  the node points to the parent
+     * @param m    the map of file names to blob SHA-1 hashes
+     * @param p    the parent commit hash
      */
     public Commit(String info, TreeMap<String, String> m, String p){
         this.message = info;
@@ -52,18 +51,37 @@ public class Commit implements Serializable, Dumpable {
         this.parent = p;
         this.secondParent = null;
         Date time = new Date();
-        this.timestamp = time.toString();
+        this.timestamp = formatDate(time);
 
     }
 
-    /**create the same first commit for every gitlet_init
+    /**
+     * Creates a new Commit object with two parents (merge commit).
      *
+     * @param info         the commit message
+     * @param m            the map of file names to blob SHA-1 hashes
+     * @param p            the first parent commit hash
+     * @param secondParent the second parent commit hash
+     */
+    public Commit(String info, TreeMap<String, String> m, String p, String secondParent){
+        this.message = info;
+        this.nameToHash = m;
+        this.parent = p;
+        this.secondParent = secondParent;
+        Date time = new Date();
+        this.timestamp = formatDate(time);
+
+    }
+
+    /**
+     * Creates the initial commit for gitlet initialization.
      *
+     * @return the SHA-1 hash of the initial commit
      */
     public static String first_commit() throws IOException {
         Commit first = new Commit("initial commit",new TreeMap<>(), null);
         Date metaTime = new Date(0);
-        first.timestamp = metaTime.toString();
+        first.timestamp = formatDate(metaTime);
         byte[] text = Utils.serialize(first);
         first.self_hash = Utils.sha1(text);
         File fir = Utils.join(Commit_DIR, first.self_hash);
@@ -83,7 +101,7 @@ public class Commit implements Serializable, Dumpable {
         File fs = Utils.join(stage_DIR, "files");
         if (fs.exists()) {
             TreeMap<String, String> m = Utils.readObject(Utils.join(stage_DIR, "files"),
-                    java.util.TreeMap.class);
+                    TreeMap.class);
             Commit nc = new Commit(me, m, currHead);
             File currBranch = Utils.join(ref, Utils.readContentsAsString(HEAD));
             byte[] text = Utils.serialize(nc);
@@ -99,7 +117,6 @@ public class Commit implements Serializable, Dumpable {
             Utils.writeObject(ncf, nc);
             ncf.createNewFile();
             Utils.writeContents(currBranch, nc.self_hash);
-            resetStage();
             resetStage();
             return currHead;
         }else {
@@ -119,8 +136,7 @@ public class Commit implements Serializable, Dumpable {
             System.out.println("A branch with that name already exists.");
             System.exit(0);
         }else {
-            b.createNewFile();
-            Utils.writeContents(b, branch);
+            Utils.writeContents(b, currHead);
         }
     }
 
@@ -157,6 +173,65 @@ public class Commit implements Serializable, Dumpable {
     }
 
     /**
+     * Returns the mapping of filenames to blob hashes for this commit.
+     *
+     * @return map of filename to blob hash
+     */
+    public TreeMap<String, String> getNameToHash() {
+        return this.nameToHash;
+    }
+
+    /**
+     * Returns the mapping of filenames to blob hashes for a commit by its hash id.
+     *
+     * @param id the commit SHA-1 hash
+     * @return map of filename to blob hash
+     */
+    public static TreeMap<String, String> getCommitFiles_map(String id) {
+        if (id == null) {
+            return new TreeMap<>();
+        }
+        Commit c = Utils.readObject(Utils.join(Commit_DIR, id), Commit.class);
+        return c.nameToHash;
+    }
+
+    /**
+     * Returns the SHA-1 hash of this commit.
+     *
+     * @return the commit SHA-1 hash
+     */
+    public String getSelfHash() {
+        return this.self_hash;
+    }
+
+    /**
+     * Sets the SHA-1 hash of this commit.
+     *
+     * @param hash the commit SHA-1 hash
+     */
+    public void setSelfHash(String hash) {
+        this.self_hash = hash;
+    }
+
+    /**
+     * Returns the first parent commit hash.
+     *
+     * @return the first parent hash
+     */
+    public String getParent() {
+        return this.parent;
+    }
+
+    /**
+     * Returns the second parent commit hash (if merge commit).
+     *
+     * @return the second parent hash
+     */
+    public String getSecondParent() {
+        return this.secondParent;
+    }
+
+    /**
      * @return a list of information for log
      * 1 date
      * 2 message
@@ -179,6 +254,22 @@ public class Commit implements Serializable, Dumpable {
         return l;
     }
 
+    /**
+     * return the commit's parent(s)
+     * default the id exists
+     * @param id the commit's hash
+     */
+    public static List<String> return_parents(String id) {
+        List<String> l = new ArrayList<>();
+        File f = Utils.join(Commit_DIR, id);
+        Commit c = Utils.readObject(f, Commit.class);
+        l.add(c.parent);
+        if (c.secondParent != null) {
+            l.add(c.secondParent);
+        }
+
+        return l;
+    }
 
     @Override
     public void dump() {
