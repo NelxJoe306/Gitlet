@@ -27,7 +27,7 @@ public class Blob implements Serializable{
     private Blob(File f) {
         this.file = f;
         byte[] t = Utils.readContents(f);
-        this.fHash = Utils.sha1(t);
+        this.fHash = Utils.hash(t);
         this.text = t;
     }
 

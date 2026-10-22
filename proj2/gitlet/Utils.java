@@ -31,6 +31,30 @@ class Utils {
     /** The length of a complete SHA-1 UID as a hexadecimal numeral. */
     static final int UID_LENGTH = 40;
 
+    /* PLUGGABLE HASH FUNCTION */
+
+    private static HashFunction currentHash = new Sha256Hash();
+
+    /** Sets the current HashFunction. */
+    static void setHashFunction(HashFunction hashFunction) {
+        currentHash = hashFunction;
+    }
+
+    /** Returns the currently selected HashFunction. */
+    static HashFunction getHashFunction() {
+        return currentHash;
+    }
+
+    /** Returns the hash of VALS using the currently selected HashFunction. */
+    static String hash(Object... vals) {
+        return currentHash.hash(vals);
+    }
+
+    /** Returns the hash of VALS using the currently selected HashFunction. */
+    static String hash(List<Object> vals) {
+        return currentHash.hash(vals);
+    }
+
     /* SHA-1 HASH VALUES. */
 
     /** Returns the SHA-1 hash of the concatenation of VALS, which may

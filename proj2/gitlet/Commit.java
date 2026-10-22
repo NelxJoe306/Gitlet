@@ -85,7 +85,7 @@ public class Commit implements Serializable, Dumpable {
         Commit first = new Commit("initial commit",new TreeMap<>(), null);
         first.timestamp = 0L;
         byte[] text = Utils.serialize(first);
-        first.self_hash = Utils.sha1(text);
+        first.self_hash = Utils.hash(text);
         File fir = Utils.join(Commit_DIR, first.self_hash);
         fir.createNewFile();
         Utils.writeObject(fir, first);
@@ -122,7 +122,7 @@ public class Commit implements Serializable, Dumpable {
         Commit nc = new Commit(me, snapshot, currHead);
         File currBranch = Utils.join(ref, Utils.readContentsAsString(HEAD));
         byte[] text = Utils.serialize(nc);
-        nc.self_hash = Utils.sha1(text);
+        nc.self_hash = Utils.hash(text);
         currHead = nc.self_hash;
         if (staged != null) {
             for (String name : staged.keySet()) {
