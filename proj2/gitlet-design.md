@@ -71,3 +71,26 @@ merge 的八条规则还在 `Repository.merge` 里：当前和给定相同就保
 - SHA-1 直接调用 `Utils.sha1`。要换 SHA-256，加一个哈希接口比改每一处调用更稳。
 - push/fetch 已经在两个目录之间搬提交和 blob 的字节。Netty 可以只换传输，不必重写 merge。
 - 回收可以沿所有分支头走父节点，留下还能到达的提交，以及这些提交 `nameToHash` 里的 blob，其余删掉。
+
+## 可插拔哈希接口与 SHA-256
+
+为支持现代密码学安全标准与算法扩展，Gitlet 引入了可插拔的哈希策略接口 `HashFunction`：
+
+1. **接口定义 (`HashFunction`)**：
+   - `name()`：返回算法标识名称（如 `"SHA-1"`、`"SHA-256"`）。
+   - `hexLength()`：返回摘要十六进制字符串的完整长度（SHA-1 为 40，SHA-256 为 64）。
+   - `hash(Object... vals)` 与 `hash(List<Object> vals)`：接收 `byte[]` 与 `String` 参数，计算并输出小写十六进制哈希结果。
+
+2. **具体实现**：
+   - `Sha1Hash`：保留原系统的 SHA-1 行为（40 位十六进制）。
+   - `Sha256Hash`：基于 `MessageDigest.getInstance("SHA-256")` 生成 64 位小写十六进制摘要。
+
+3. **统一入口与调用**：
+   - 在 `Utils` 中增加静态入口 `Utils.hash(Object...)` 和 `Utils.hash(List<Object>)`，默认委托至 `Sha256Hash`。
+   - 保留 `Utils.sha1` 方法以保证向后兼容性。
+   - 替换 `Blob.java`、`Commit.java` 与 `Repository.java` 中原本对 `Utils.sha1` 的直接调用。
+   - 提交查找（`findCommitId`）使用前缀匹配（`startsWith`），天然支持 64 位 SHA-256 完整及缩写哈希查找。
+
+4. **为什么采用 SHA-256**：
+   - **抗碰撞安全性**：SHA-1 算法已存在已知的实际碰撞攻击（如 SHAttered 攻击），无法保证长期的密码学完整性。SHA-256 提供 256 位安全强度，能够有效防御碰撞与原像攻击。
+   - **解耦与架构演进**：通过接口抽象使 Gitlet 的对象寻址机制与具体的哈希算法解耦，与真实 Git 社区向 SHA-256（Object Format）过渡的标准演进方向一致。

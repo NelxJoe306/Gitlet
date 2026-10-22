@@ -120,7 +120,7 @@ public class Repository {
             System.exit(0);
         } else {
             byte[] data = readContents(f);
-            String hash = sha1(data);
+            String hash = Utils.hash(data);
             TreeMap<String, String> m = currCommitFiles_map();
             if (m.containsKey(name) && m.get(name).equals(hash)) {
                 File copyInStage = join(stage_DIR, "files");
@@ -364,7 +364,7 @@ public class Repository {
             File cwd_f = join(CWD, s);
             if (!cwd_f.exists()) {
                 modifications.add(s + " (deleted)");
-            } else if (!sha1(readContents(cwd_f)).equals(stage_m.get(s))) {
+            } else if (!Utils.hash(readContents(cwd_f)).equals(stage_m.get(s))) {
                 modifications.add(s + " (modified)");
             }
         }
@@ -375,7 +375,7 @@ public class Repository {
             File cwd_f = join(CWD, s);
             if (!cwd_f.exists()) {
                 modifications.add(s + " (deleted)");
-            } else if (!sha1(readContents(cwd_f)).equals(m.get(s))) {
+            } else if (!Utils.hash(readContents(cwd_f)).equals(m.get(s))) {
                 modifications.add(s + " (modified)");
             }
         }
@@ -432,7 +432,7 @@ public class Repository {
     }
 
     /**
-     * find the id by using characters fewer than 40.
+     * find the id by using characters fewer than 64 (or equal).
      * Zero matches and more than one match are both "no such commit".
      */
     private static String findCommitId(String id) {
@@ -896,7 +896,7 @@ public class Repository {
                         byte[] conflictContent = buildConflict(cContent, gContent);
                         writeContents(join(CWD, file), conflictContent);
                         Blob.saveToStage(file);
-                        String conflictBlobHash = sha1(conflictContent);
+                        String conflictBlobHash = Utils.hash(conflictContent);
                         writeContents(join(blob_DIR, conflictBlobHash), conflictContent);
                         newCommitMap.put(file, conflictBlobHash);
                     }
@@ -922,7 +922,7 @@ public class Repository {
                         byte[] conflictContent = buildConflict(cContent, gContent);
                         writeContents(join(CWD, file), conflictContent);
                         Blob.saveToStage(file);
-                        String conflictBlobHash = sha1(conflictContent);
+                        String conflictBlobHash = Utils.hash(conflictContent);
                         writeContents(join(blob_DIR, conflictBlobHash), conflictContent);
                         newCommitMap.put(file, conflictBlobHash);
                     }
@@ -944,7 +944,7 @@ public class Repository {
         String commitMessage = "Merged " + branch + " into " + curr_Head + ".";
         Commit mergeCommit = new Commit(commitMessage, newCommitMap, current_head_hash, branch_head_hash);
         byte[] text = serialize(mergeCommit);
-        mergeCommit.setSelfHash(sha1(text));
+        mergeCommit.setSelfHash(Utils.hash(text));
 
         File ncf = join(Commit_DIR, mergeCommit.getSelfHash());
         writeObject(ncf, mergeCommit);
