@@ -21,11 +21,12 @@ public class Blob implements Serializable{
      */
     private String fHash;
     private File file;
-    private String text;
+    /** Raw file bytes. A String would replace bytes that are not valid UTF-8. */
+    private byte[] text;
 
     private Blob(File f) {
         this.file = f;
-        String t = Utils.readContentsAsString(f);
+        byte[] t = Utils.readContents(f);
         this.fHash = Utils.sha1(t);
         this.text = t;
     }

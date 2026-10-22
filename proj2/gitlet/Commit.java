@@ -6,6 +6,7 @@ import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+import static gitlet.Blob.resetRemoval;
 import static gitlet.Blob.resetStage;
 import static gitlet.Repository.*;
 
@@ -22,8 +23,12 @@ public class Commit implements Serializable, Dumpable {
 
     /** The message of this Commit. */
     private String message;
-    /** The timestamp of this Commit. */
-    private String timestamp;
+    /**
+     * Epoch milliseconds. A formatted date string would bake the local
+     * timezone into the serialized commit, so the same commit would hash
+     * differently on another machine. Log still prints a local date.
+     */
+    private long timestamp;
     /** The parent commit's hash of this Commit. */
     private final String parent;
     /** The second parent commit's hash of this Commit. */
@@ -50,8 +55,7 @@ public class Commit implements Serializable, Dumpable {
         this.nameToHash = m;
         this.parent = p;
         this.secondParent = null;
-        Date time = new Date();
-        this.timestamp = formatDate(time);
+        this.timestamp = new Date().getTime();
 
     }
 
@@ -68,8 +72,7 @@ public class Commit implements Serializable, Dumpable {
         this.nameToHash = m;
         this.parent = p;
         this.secondParent = secondParent;
-        Date time = new Date();
-        this.timestamp = formatDate(time);
+        this.timestamp = new Date().getTime();
 
     }
 
@@ -80,8 +83,7 @@ public class Commit implements Serializable, Dumpable {
      */
     public static String first_commit() throws IOException {
         Commit first = new Commit("initial commit",new TreeMap<>(), null);
-        Date metaTime = new Date(0);
-        first.timestamp = formatDate(metaTime);
+        first.timestamp = 0L;
         byte[] text = Utils.serialize(first);
         first.self_hash = Utils.sha1(text);
         File fir = Utils.join(Commit_DIR, first.self_hash);
@@ -98,33 +100,45 @@ public class Commit implements Serializable, Dumpable {
      * commiting a new commit in *current* branch
      */
     public static String commitInCurrBran(String me) throws IOException {
+        /* Parent snapshot, then staged additions, then staged removals. */
+        TreeMap<String, String> snapshot = new TreeMap<>(currCommitFiles_map());
         File fs = Utils.join(stage_DIR, "files");
+        TreeMap<String, String> staged = null;
         if (fs.exists()) {
-            TreeMap<String, String> m = Utils.readObject(Utils.join(stage_DIR, "files"),
-                    TreeMap.class);
-            Commit nc = new Commit(me, m, currHead);
-            File currBranch = Utils.join(ref, Utils.readContentsAsString(HEAD));
-            byte[] text = Utils.serialize(nc);
-            nc.self_hash = Utils.sha1(text);
-            currHead = nc.self_hash;
-            String[] files = nc.nameToHash.keySet().toArray(new String[0]);
-            for (String name : files) {
-                File f = Utils.join(stage_DIR, nc.nameToHash.get(name));
-                File copy = Utils.join(blob_DIR, nc.nameToHash.get(name));
-                Utils.writeContents(copy, Utils.readContentsAsString(f));
+            staged = Utils.readObject(fs, TreeMap.class);
+            snapshot.putAll(staged);
+        }
+        List<String> removed = Utils.plainFilenamesIn(removal);
+        if (removed != null) {
+            for (String name : removed) {
+                snapshot.remove(name);
             }
-            File ncf = Utils.join(Commit_DIR, nc.self_hash);
-            Utils.writeObject(ncf, nc);
-            ncf.createNewFile();
-            Utils.writeContents(currBranch, nc.self_hash);
-            resetStage();
-            return currHead;
-        }else {
+        }
+        if (snapshot.equals(currCommitFiles_map())) {
             System.out.println("No changes added to the commit.");
             System.exit(0);
         }
 
-        return me;
+        Commit nc = new Commit(me, snapshot, currHead);
+        File currBranch = Utils.join(ref, Utils.readContentsAsString(HEAD));
+        byte[] text = Utils.serialize(nc);
+        nc.self_hash = Utils.sha1(text);
+        currHead = nc.self_hash;
+        if (staged != null) {
+            for (String name : staged.keySet()) {
+                String blobId = staged.get(name);
+                File f = Utils.join(stage_DIR, blobId);
+                File copy = Utils.join(blob_DIR, blobId);
+                Utils.writeContents(copy, Utils.readContents(f));
+            }
+        }
+        File ncf = Utils.join(Commit_DIR, nc.self_hash);
+        Utils.writeObject(ncf, nc);
+        ncf.createNewFile();
+        Utils.writeContents(currBranch, nc.self_hash);
+        resetStage();
+        resetRemoval();
+        return currHead;
     }
 
     /**
@@ -148,8 +162,8 @@ public class Commit implements Serializable, Dumpable {
      */
     public static void rm_branch(String name) {
         /* if the branch exists*/
-        List<String> branches = Utils.plainFilenamesIn(ref);
-        if (!branches.contains(name)) {
+        File bran_rev = Utils.join(ref, name.replace('/', File.separatorChar));
+        if (!bran_rev.isFile()) {
             System.out.println("A branch with that name does not exist.");
             System.exit(0);
         }
@@ -160,7 +174,6 @@ public class Commit implements Serializable, Dumpable {
             System.exit(0);
         }
 
-        File bran_rev = Utils.join(ref, name);
         bran_rev.delete();
     }
 
@@ -242,7 +255,7 @@ public class Commit implements Serializable, Dumpable {
      */
     public List<String> returnInfo() {
         List<String> l = new ArrayList<>();
-        l.add(this.timestamp);
+        l.add(formatDate(new Date(this.timestamp)));
         l.add(this.message);
         l.add(this.self_hash);
         l.add(this.parent);

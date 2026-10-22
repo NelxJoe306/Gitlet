@@ -202,10 +202,17 @@ def canonicalize(s):
 def fileExists(f, dir):
     return exists(join(dir, f))
 
+def file_bytes(filename):
+    try:
+        with open(filename, 'rb') as inp:
+            return inp.read()
+    except FileNotFoundError:
+        return None
+
 def correctFileOutput(name, expected, dir):
-    userData = canonicalize(contents(join(dir, name)))
-    stdData = canonicalize(contents(join(src_dir, expected)))
-    return userData == stdData
+    # Byte comparison so a binary blob is not decoded as text and rejected
+    # with a Unicode error before the test can tell whether the bytes match.
+    return file_bytes(join(dir, name)) == file_bytes(join(src_dir, expected))
 
 def correctProgramOutput(expected, actual, last_groups, is_regexp):
     expected = re.sub(r'[ \t]+\n', '\n', '\n'.join(expected))

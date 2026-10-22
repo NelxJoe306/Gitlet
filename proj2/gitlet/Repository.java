@@ -68,7 +68,7 @@ public class Repository {
      */
     public static void init() throws IOException {
         if (GITLET_DIR.exists()) {
-            message("A Gitlet version-control system already exists in the current directory");
+            message("A Gitlet version-control system already exists in the current directory.");
             System.exit(0);
         } else {
             GITLET_DIR.mkdir();
@@ -119,14 +119,20 @@ public class Repository {
             System.out.println("File does not exist.");
             System.exit(0);
         } else {
-            Commit c = readObject(join(Commit_DIR, currHead), Commit.class);
-            String hash = sha1(readContentsAsString(f));
+            byte[] data = readContents(f);
+            String hash = sha1(data);
             TreeMap<String, String> m = currCommitFiles_map();
-            if (join(stage_DIR, "files").exists() && m.containsKey(name) && m.get(name).equals(hash)) {
+            if (m.containsKey(name) && m.get(name).equals(hash)) {
                 File copyInStage = join(stage_DIR, "files");
-                TreeMap<String, String> text = readObject(copyInStage, TreeMap.class);
-                text.remove(name);
-                writeObject(copyInStage, text);
+                if (copyInStage.exists()) {
+                    TreeMap<String, String> text = readObject(copyInStage, TreeMap.class);
+                    text.remove(name);
+                    writeObject(copyInStage, text);
+                }
+                File stagedRemoval = join(removal, name);
+                if (stagedRemoval.exists()) {
+                    stagedRemoval.delete();
+                }
                 return;
             }
             saveToStage(name);
@@ -143,29 +149,29 @@ public class Repository {
     public static void rm(String name) throws IOException {
         File CWDf = join(CWD, name);
         File fs = join(stage_DIR, "files");
+        boolean staged = false;
         if (fs.exists()) {
             TreeMap<String, String> m = readObject(fs, TreeMap.class);
             if (m.containsKey(name)) {
+                staged = true;
                 m.remove(name);
                 writeObject(fs, m);
-                String content = readContentsAsString(CWDf);
-                File r = join(removal, name);
-                if (r.exists()) {
-                    writeContents(r, content);
-                } else {
-                    r.createNewFile();
-                    writeContents(r, content);
-                }
-                return;
             }
         }
-        if (currCommitFiles_map().containsKey(name)) {
-            CWDf.delete();
-        } else {
+        boolean tracked = currCommitFiles_map().containsKey(name);
+        if (!staged && !tracked) {
             System.out.println("No reason to remove the file.");
             System.exit(0);
         }
-
+        /* Tracked: remember the removal and delete the working copy.
+           Staged only: the unstage above is the whole operation. */
+        if (tracked) {
+            File r = join(removal, name);
+            if (!r.exists()) {
+                r.createNewFile();
+            }
+            restrictedDelete(CWDf);
+        }
     }
 
     /**
@@ -302,7 +308,7 @@ public class Repository {
     public static void status() {
         /*  branches  */
         String currb = readContentsAsString(join(GITLET_DIR, "HEAD"));
-        List<String> l = plainFilenamesIn(ref);
+        List<String> l = allBranchNames();
         System.out.println("=== Branches ===");
         for (String s : l) {
             if (Objects.equals(s, currb)) {
@@ -311,39 +317,39 @@ public class Repository {
                 System.out.println(s);
             }
         }
-        System.out.println("\n");
+        System.out.println();
         /*  staged files  */
         File f = join(stage_DIR, "files");
-        Set<String> sf;
-        System.out.println("=== Staged files ===");
-
-        if (!f.exists()) {
-            System.out.println("\n");
-        } else {
-            sf = readObject(f, TreeMap.class).keySet();
-            for (String s : sf) {
-                System.out.format("%s%n", s);
-            }
+        TreeMap<String, String> stage_m = f.exists()
+                ? readObject(f, TreeMap.class)
+                : new TreeMap<>();
+        Set<String> sf = stage_m.keySet();
+        System.out.println("=== Staged Files ===");
+        for (String s : sf) {
+            System.out.format("%s%n", s);
         }
-        System.out.println("\n");
+        System.out.println();
 
         /*removed files*/
-        l = plainFilenamesIn(removal);
-        System.out.println("=== Removed Files ===");
-        if (l != null) {
-            for (String s : l) {
-                System.out.format("%s%n", s);
-            }
+        List<String> removed = plainFilenamesIn(removal);
+        if (removed == null) {
+            removed = new ArrayList<>();
         }
-        System.out.println("\n");
+        System.out.println("=== Removed Files ===");
+        for (String s : removed) {
+            System.out.format("%s%n", s);
+        }
+        System.out.println();
 
         /* === Modifications Not Staged For Commit === */
         System.out.println("=== Modifications Not Staged For Commit ===");
-        File ccf = join(Commit_DIR, currHead); /*current commit file*/
-        Commit cc = readObject(ccf, Commit.class);
         l = plainFilenamesIn(CWD);
+        if (l == null) {
+            l = new ArrayList<>();
+        }
         TreeMap<String, String> m = currCommitFiles_map();
         Set<String> cf = m.keySet();
+        Set<String> removedSet = new HashSet<>(removed);
         /*
         Tracked in the current commit, changed in the working directory, but not staged; or
         Staged for addition, but with different contents than in the working directory; or
@@ -353,66 +359,42 @@ public class Repository {
         sf -> staged files
         cf -> current commit files
          */
-        if (f.exists()) {
-            TreeMap<String, String> stage_m = readObject(f, TreeMap.class);
-            sf = readObject(f, TreeMap.class).keySet();
-            for (String s : sf) {
-                File cwd_f = join(CWD, s);
-                if (!cwd_f.exists()) {
-                    System.out.format("%s(deleted)%n", s);
-                }
-            }
-            for (String s : l) {
-                String CWDf_hash = sha1(readContentsAsString(join(CWD, s)));
-                if ((cf.contains(s) && !sf.contains(s) && !CWDf_hash.equals(m.get(s))) ||
-                        (stage_m.containsKey(s) && !CWDf_hash.equals(stage_m.get(s)))) {
-                    System.out.format("%s(modified)%n", s);
-                }
-            }
-
-        } else {
-            for (String s : l) {
-                String CWDf_hash = sha1(readContentsAsString(join(CWD, s)));
-                if (cf.contains(s) && !CWDf_hash.equals(m.get(s))) {
-                    System.out.format("%s(modified)%n", s);
-                }
-            }
-
-            List<String> rml = plainFilenamesIn(removal);
-            for (String s : cf) {
-                File cwd_f = join(CWD, s);
-                if (!cwd_f.exists()) {
-                    System.out.format("%s(deleted)%n", s);
-                }
-            }
-            if (rml != null) {
-                for (String s : rml) {
-                    l = plainFilenamesIn(CWD);
-                    if (l != null && cf.contains(s) && !l.contains(s)) {
-                        System.out.format("%s(deleted)%n", s);
-                    }
-                }
+        TreeSet<String> modifications = new TreeSet<>();
+        for (String s : sf) {
+            File cwd_f = join(CWD, s);
+            if (!cwd_f.exists()) {
+                modifications.add(s + " (deleted)");
+            } else if (!sha1(readContents(cwd_f)).equals(stage_m.get(s))) {
+                modifications.add(s + " (modified)");
             }
         }
-        System.out.println("\n");
+        for (String s : cf) {
+            if (sf.contains(s) || removedSet.contains(s)) {
+                continue;
+            }
+            File cwd_f = join(CWD, s);
+            if (!cwd_f.exists()) {
+                modifications.add(s + " (deleted)");
+            } else if (!sha1(readContents(cwd_f)).equals(m.get(s))) {
+                modifications.add(s + " (modified)");
+            }
+        }
+        for (String s : modifications) {
+            System.out.println(s);
+        }
+        System.out.println();
     /** Untracked Files.
     * Files present in the working directory
-    * but neither staged for addition nor tracked.  */
+    * but neither staged for addition nor tracked.
+    * A file staged for removal and then recreated counts as untracked.  */
         System.out.println("=== Untracked Files ===");
-        l = plainFilenamesIn(CWD);
-
-        if (l != null) {
-            sf = f.exists()
-                    ? readObject(f, TreeMap.class).keySet()
-                    : Collections.emptySet();
-
-            for (String s : l) {
-                if (!cf.contains(s) && !sf.contains(s)) {
-                    System.out.format("%s%n", s);
-                }
+        for (String s : l) {
+            boolean tracked = cf.contains(s) && !removedSet.contains(s);
+            if (!tracked && !sf.contains(s)) {
+                System.out.format("%s%n", s);
             }
         }
-        System.out.println("\n");
+        System.out.println();
     }
 
     /**
@@ -429,7 +411,7 @@ public class Repository {
         }else {
             File cwd_f = join(CWD, name);
             String hash = curr_com_m.get(name);
-            String text = readContentsAsString(join(blob_DIR, hash));
+            byte[] text = readContents(join(blob_DIR, hash));
             writeContents(cwd_f, text);
             if (!cwd_f.exists()) {
                 cwd_f.createNewFile();
@@ -442,38 +424,36 @@ public class Repository {
      *  The new version of the file is not staged.
      */
     public static void check_id (String id, String name) throws IOException {
-        String full_id = findCommitId(id).getLast();
-        File aim_com = join(Commit_DIR, full_id);
-        if (!aim_com.exists()) {
-            System.out.println("No commit with that id exists.");
-        }else {
-            String p = currHead;
-            currHead = full_id;
-            check_file(name);
-            currHead = p;
-        }
+        String full_id = findCommitId(id);
+        String p = currHead;
+        currHead = full_id;
+        check_file(name);
+        currHead = p;
     }
 
     /**
-     * find the id by using characters fewer than 40
-     *
+     * find the id by using characters fewer than 40.
+     * Zero matches and more than one match are both "no such commit".
      */
-    private static List<String> findCommitId(String id) {
+    private static String findCommitId(String id) {
         List<String> commits_name = plainFilenamesIn(Commit_DIR);
-        List<String> result = new ArrayList<>(List.of(new String[]{"A"}));
-        if (commits_name == null) {
-            return result;
-        }
-        int i = 0;
-        for (String s : commits_name) {
-            if (s.startsWith(id)) {
-                result.add(s);
+        String match = null;
+        if (commits_name != null) {
+            for (String s : commits_name) {
+                if (s.startsWith(id)) {
+                    if (match != null) {
+                        System.out.println("No commit with that id exists.");
+                        System.exit(0);
+                    }
+                    match = s;
+                }
             }
         }
-        if (result.size() > 2) {
+        if (match == null) {
+            System.out.println("No commit with that id exists.");
             System.exit(0);
         }
-        return result;
+        return match;
     }
 
     /**
@@ -486,9 +466,9 @@ public class Repository {
      *  The staging area is cleared, unless the checked-out branch is the current branch.
      */
     public static void check_branch(String name) throws IOException {
-        /*check if the branch exists*/
-        List<String> branches = Utils.plainFilenamesIn(ref);
-        if (!branches.contains(name)) {
+        /*check if the branch exists, including remote/branch under ref/ */
+        File rev_bran = Utils.join(ref, name.replace('/', File.separatorChar));
+        if (!rev_bran.isFile()) {
             System.out.println("No such branch exists.");
             System.exit(0);
         }
@@ -507,9 +487,14 @@ public class Repository {
         Map<String, String> cf = currCommitFiles_map();
 
         String oldHead = currHead;
-        currHead = Utils.readContentsAsString(Utils.join(ref, name));
+        currHead = Utils.readContentsAsString(rev_bran);
         Set<String> targetFiles = currCommitFiles_map().keySet();
         currHead = oldHead;
+
+        List<String> removedNames = plainFilenamesIn(removal);
+        Set<String> removedSet = removedNames == null
+                ? Collections.emptySet()
+                : new HashSet<>(removedNames);
 
         if (l != null) {
             sf = f.exists()
@@ -517,12 +502,12 @@ public class Repository {
                     : Collections.emptySet();
 
             for (String s : l) {
-                if (!cf.containsKey(s)
-                        && !sf.contains(s)
-                        && targetFiles.contains(s)) {
+                boolean untracked = (!cf.containsKey(s) || removedSet.contains(s))
+                        && !sf.contains(s);
+                if (untracked && targetFiles.contains(s)) {
                     System.out.println("There is an untracked file in the way; " +
                             "delete it, or add and commit it first.");
-
+                    System.exit(0);
                 }
             }
 
@@ -534,13 +519,12 @@ public class Repository {
             }
         }
 
-        File rev_bran = Utils.join(ref, name);
         currHead = Utils.readContentsAsString(rev_bran);
         Utils.writeContents(Utils.join(GITLET_DIR, "HEAD"), name);
         TreeMap<String, String> cm = currCommitFiles_map();
         for (String s : cm.keySet()) {
             File copy = Utils.join(CWD, s);
-            String content = Utils.readContentsAsString(Utils.join(blob_DIR, cm.get(s)));
+            byte[] content = Utils.readContents(Utils.join(blob_DIR, cm.get(s)));
             Utils.writeContents(copy, content);
             if (!copy.exists()) {
                 copy.createNewFile();
@@ -552,6 +536,7 @@ public class Repository {
             }
         }
         resetStage();
+        resetRemoval();
     }
 
     /**
@@ -561,12 +546,7 @@ public class Repository {
      */
     public static void reset(String id) {
 
-        String full_id = findCommitId(id).getLast();
-
-        if (full_id == null) {
-            System.out.println("No commit with that id exists.");
-            return;
-        }
+        String full_id = findCommitId(id);
 
         File aim_com = join(Commit_DIR, full_id);
 
@@ -592,18 +572,21 @@ public class Repository {
                     ? readObject(stageFile, TreeMap.class).keySet()
                     : Collections.emptySet();
 
-            for (String fileName : files) {
+            List<String> removedNames = plainFilenamesIn(removal);
+            Set<String> removedSet = removedNames == null
+                    ? Collections.emptySet()
+                    : new HashSet<>(removedNames);
 
-                if (!cf.containsKey(fileName)
-                        && !stagedFiles.contains(fileName)
-                        && targetFiles.containsKey(fileName)) {
+            for (String fileName : files) {
+                boolean untracked = (!cf.containsKey(fileName) || removedSet.contains(fileName))
+                        && !stagedFiles.contains(fileName);
+                if (untracked && targetFiles.containsKey(fileName)) {
 
                     System.out.println(
                             "There is an untracked file in the way; "
                                     + "delete it, or add and commit it first."
                     );
-
-                    return;
+                    System.exit(0);
                 }
             }
         }
@@ -619,7 +602,7 @@ public class Repository {
 
             File file = Utils.join(CWD, fileName);
 
-            String content = Utils.readContentsAsString(
+            byte[] content = Utils.readContents(
                     Utils.join(blob_DIR, targetFiles.get(fileName))
             );
 
@@ -638,6 +621,7 @@ public class Repository {
         );
 
         resetStage();
+        resetRemoval();
     }
 
     /**
@@ -660,6 +644,8 @@ public class Repository {
             }
         }
 
+        /* Every common ancestor, not the one closest to the given branch. */
+        Set<String> common = new HashSet<>();
         Queue<String> qBran = new ArrayDeque<>();
         Set<String> visitedBran = new HashSet<>();
         qBran.add(bran_head);
@@ -668,7 +654,7 @@ public class Repository {
         while (!qBran.isEmpty()) {
             String currId = qBran.poll();
             if (currDist.containsKey(currId)) {
-                return currId;
+                common.add(currId);
             }
             List<String> parents = Commit.return_parents(currId);
             for (String p : parents) {
@@ -678,7 +664,50 @@ public class Repository {
                 }
             }
         }
-        return null;
+        if (common.isEmpty()) {
+            return null;
+        }
+
+        /* Drop a common ancestor that another common ancestor can reach. */
+        Set<String> dominated = new HashSet<>();
+        for (String candidate : common) {
+            Queue<String> walk = new ArrayDeque<>();
+            Set<String> seen = new HashSet<>();
+            for (String p : Commit.return_parents(candidate)) {
+                if (p != null) {
+                    walk.add(p);
+                }
+            }
+            while (!walk.isEmpty()) {
+                String id = walk.poll();
+                if (!seen.add(id)) {
+                    continue;
+                }
+                if (common.contains(id)) {
+                    dominated.add(id);
+                }
+                for (String p : Commit.return_parents(id)) {
+                    if (p != null && !seen.contains(p)) {
+                        walk.add(p);
+                    }
+                }
+            }
+        }
+
+        String best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (String candidate : common) {
+            if (dominated.contains(candidate)) {
+                continue;
+            }
+            int distance = currDist.get(candidate);
+            if (best == null || distance < bestDistance
+                    || (distance == bestDistance && candidate.compareTo(best) < 0)) {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     /**
@@ -834,7 +863,7 @@ public class Repository {
                 if (Objects.equals(sHash, cHash)) {
                     if (gHash != null && !Objects.equals(sHash, gHash)) {
                         // Rule 1: modified in given, not modified in curr
-                        String content = readContentsAsString(join(blob_DIR, gHash));
+                        byte[] content = readContents(join(blob_DIR, gHash));
                         writeContents(join(CWD, file), content);
                         Blob.saveToStage(file);
                         newCommitMap.put(file, gHash);
@@ -862,9 +891,9 @@ public class Repository {
                     } else {
                         // Rule 8: Conflict
                         hasConflict = true;
-                        String cContent = (cHash != null) ? readContentsAsString(join(blob_DIR, cHash)) : "";
-                        String gContent = (gHash != null) ? readContentsAsString(join(blob_DIR, gHash)) : "";
-                        String conflictContent = "<<<<<<< HEAD\n" + cContent + "=======\n" + gContent + ">>>>>>>\n";
+                        byte[] cContent = (cHash != null) ? readContents(join(blob_DIR, cHash)) : new byte[0];
+                        byte[] gContent = (gHash != null) ? readContents(join(blob_DIR, gHash)) : new byte[0];
+                        byte[] conflictContent = buildConflict(cContent, gContent);
                         writeContents(join(CWD, file), conflictContent);
                         Blob.saveToStage(file);
                         String conflictBlobHash = sha1(conflictContent);
@@ -878,7 +907,7 @@ public class Repository {
                     // Rule 4: present only in curr -> stays as is
                 } else if (cHash == null && gHash != null) {
                     // Rule 5: present only in given -> checkout & stage
-                    String content = readContentsAsString(join(blob_DIR, gHash));
+                    byte[] content = readContents(join(blob_DIR, gHash));
                     writeContents(join(CWD, file), content);
                     Blob.saveToStage(file);
                     newCommitMap.put(file, gHash);
@@ -888,9 +917,9 @@ public class Repository {
                     } else {
                         // Rule 8: Conflict
                         hasConflict = true;
-                        String cContent = readContentsAsString(join(blob_DIR, cHash));
-                        String gContent = readContentsAsString(join(blob_DIR, gHash));
-                        String conflictContent = "<<<<<<< HEAD\n" + cContent + "=======\n" + gContent + ">>>>>>>\n";
+                        byte[] cContent = readContents(join(blob_DIR, cHash));
+                        byte[] gContent = readContents(join(blob_DIR, gHash));
+                        byte[] conflictContent = buildConflict(cContent, gContent);
                         writeContents(join(CWD, file), conflictContent);
                         Blob.saveToStage(file);
                         String conflictBlobHash = sha1(conflictContent);
@@ -1031,7 +1060,7 @@ public class Repository {
                     File localBlob = join(blob_DIR, blobHash);
                     File remoteBlob = join(remoteBlobs, blobHash);
                     if (localBlob.exists() && !remoteBlob.exists()) {
-                        writeContents(remoteBlob, readContentsAsString(localBlob));
+                        writeContents(remoteBlob, readContents(localBlob));
                     }
                 }
             }
@@ -1094,7 +1123,7 @@ public class Repository {
                     File remoteBlob = join(remoteBlobs, blobHash);
                     File localBlob = join(blob_DIR, blobHash);
                     if (remoteBlob.exists() && !localBlob.exists()) {
-                        writeContents(localBlob, readContentsAsString(remoteBlob));
+                        writeContents(localBlob, readContents(remoteBlob));
                     }
                 }
             }
@@ -1130,6 +1159,48 @@ public class Repository {
     public static void pull(String remoteName, String branchName) throws IOException {
         fetch(remoteName, branchName);
         merge(remoteName + "/" + branchName);
+    }
+
+    /** Branch names, including remote-tracking names stored as ref/remote/branch. */
+    private static List<String> allBranchNames() {
+        List<String> names = new ArrayList<>();
+        collectBranchNames(ref, "", names);
+        Collections.sort(names);
+        return names;
+    }
+
+    private static void collectBranchNames(File dir, String prefix, List<String> names) {
+        File[] kids = dir.listFiles();
+        if (kids == null) {
+            return;
+        }
+        for (File kid : kids) {
+            String name = prefix.isEmpty() ? kid.getName() : prefix + "/" + kid.getName();
+            if (kid.isDirectory()) {
+                collectBranchNames(kid, name, names);
+            } else {
+                names.add(name);
+            }
+        }
+    }
+
+    /** Spec conflict text. File bytes are appended raw, so a missing side is empty. */
+    private static byte[] buildConflict(byte[] current, byte[] given) {
+        byte[] head = "<<<<<<< HEAD\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] mid = "=======\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] end = ">>>>>>>\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] out = new byte[head.length + current.length + mid.length + given.length + end.length];
+        int i = 0;
+        System.arraycopy(head, 0, out, i, head.length);
+        i += head.length;
+        System.arraycopy(current, 0, out, i, current.length);
+        i += current.length;
+        System.arraycopy(mid, 0, out, i, mid.length);
+        i += mid.length;
+        System.arraycopy(given, 0, out, i, given.length);
+        i += given.length;
+        System.arraycopy(end, 0, out, i, end.length);
+        return out;
     }
 }
 
